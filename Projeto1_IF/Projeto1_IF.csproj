@@ -23,6 +23,7 @@
   <ItemGroup>
     <Folder Include="Views\TbAlimento\" />
     <Folder Include="Views\TbCidade\" />
+    <Folder Include="Views\TbProfissional\" />
   </ItemGroup>
 
 </Project>
