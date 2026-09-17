@@ -1,11 +1,14 @@
-
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using Projeto1_IF.Models;
 using Projeto1_IF.Data;
+using Projeto1_IF.Models;
+using Projeto1_IF.Security;
 
+// Lucas Pedroso do Bomdespacho
+[Authorize(Roles = AppRoles.Todos)]
 public class TbProfissionaisController : Controller
 {
     private readonly DB_IFContext _context;
@@ -17,208 +20,170 @@ public class TbProfissionaisController : Controller
         _userManager = userManager;
     }
 
-    // GET: TBPROFISSIONALS
     public async Task<IActionResult> Index()
     {
-        return View(await _context.TbProfissional.ToListAsync());
+        var profissionais = await (await ProfissionaisPermitidosAsync())
+            .AsNoTracking().OrderBy(p => p.Nome).ToListAsync();
+        return View(profissionais);
     }
 
-    // GET: TBPROFISSIONALS/Details/5
     public async Task<IActionResult> Details(int? id)
     {
-        if (id == null)
+        if (id == null) 
         {
             return NotFound();
-        }
-
-        var tbprofissional = await _context.TbProfissional
-            .FirstOrDefaultAsync(m => m.IdProfissional == id);
-        if (tbprofissional == null)
-        {
-            return NotFound();
-        }
-
-        return View(tbprofissional);
+        } 
+        var profissional = await (await ProfissionaisPermitidosAsync())
+            .AsNoTracking().FirstOrDefaultAsync(p => p.IdProfissional == id);
+        return profissional == null ? NotFound() : View(profissional);
     }
 
-    // GET: TBPROFISSIONALS/Create
-    public IActionResult Create()
-    {
-        ViewData["IdCidade"] = new SelectList(_context.TbCidade, "IdCidade", "Nome");
-        ViewData["IdPlano"] = new SelectList(_context.TbPlano, "IdPlano", "Nome");
-        ViewData["IdTipoAcesso"] = new SelectList(_context.TbTipoAcesso, "IdTipoAcesso", "Nome");
-        return View();
-    }
-
-    // POST: TBPROFISSIONALS/Create
-    // To protect from overposting attacks, enable the specific properties you want to bind to.
-    // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create([Bind("IdTipoProfissional,IdTipoAcesso,IdCidade,IdUser,Nome,Cpf,CrmCrn,Especialidade,Logradouro,Numero,Bairro,Cep,Cidade,Estado,Ddd1,Ddd2,Telefone1,Telefone2,Salario")] TbProfissional tbprofissional, [Bind("IdPlano")] TbContrato IdContratoNavigation)
-    {
-        ModelState.Remove("IdUser");
-        ModelState.Remove("IdContrato");
-
-        // repopula dropdowns sempre que for necessário retornar a View
-        void PopulateSelects()
-        {
-            ViewData["IdCidade"] = new SelectList(_context.TbCidade, "IdCidade", "Nome", tbprofissional?.IdCidade);
-            ViewData["IdPlano"] = new SelectList(_context.TbPlano, "IdPlano", "Nome", IdContratoNavigation?.IdPlano);
-            ViewData["IdTipoAcesso"] = new SelectList(_context.TbTipoAcesso, "IdTipoAcesso", "Nome", tbprofissional?.IdTipoAcesso);
-        }
-
-        if (!ModelState.IsValid)
-        {
-            PopulateSelects();
-            return View(tbprofissional);
-        }
-
-        // cria contrato e trata possíveis erros de BD
-        IdContratoNavigation.DataInicio = DateTime.UtcNow;
-        IdContratoNavigation.DataFim = IdContratoNavigation.DataInicio.Value.AddMonths(1);
-        _context.Add(IdContratoNavigation);
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex)
-        {
-            ModelState.AddModelError(string.Empty, "Erro ao salvar o contrato: " + ex.GetBaseException().Message);
-            PopulateSelects();
-            return View(tbprofissional);
-        }
-
-        // assegura que o contrato realmente existe antes de associar
-        tbprofissional.IdContrato = IdContratoNavigation.IdContrato;
-        var contratoExists = await _context.TbContrato.AnyAsync(c => c.IdContrato == tbprofissional.IdContrato);
-        if (!contratoExists)
-        {
-            ModelState.AddModelError("IdContrato", "Contrato selecionado não existe.");
-            PopulateSelects();
-            return View(tbprofissional);
-        }
-
-        var userManager = HttpContext.RequestServices.GetService<UserManager<IdentityUser>>();
-        if (userManager == null)
-        {
-            ModelState.AddModelError(string.Empty, "Serviço de usuário indisponível.");
-            PopulateSelects();
-            return View(tbprofissional);
-        }
-
-        var user = await userManager.GetUserAsync(User);
-        if (user == null)
-        {
-            // usuário não autenticado ou não encontrado -> retorna view com erro em vez de 404
-            ModelState.AddModelError(string.Empty, "Usuário não autenticado ou não encontrado.");
-            PopulateSelects();
-            return View(tbprofissional);
-        }
-
-        tbprofissional.IdUser = user.Id;
-
-        _context.Add(tbprofissional);
-        try
-        {
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
-        }
-        catch (DbUpdateException ex)
-        {
-            // registra erro de BD e mostra mensagem amigável na View
-            ModelState.AddModelError(string.Empty, "Erro ao salvar no banco de dados: " + ex.GetBaseException().Message);
-            PopulateSelects();
-            return View(tbprofissional);
-        }
-    }
-
-    // GET: TBPROFISSIONALS/Edit/5
     public async Task<IActionResult> Edit(int? id)
     {
         if (id == null)
         {
             return NotFound();
-        }
-
-        var tbprofissional = await _context.TbProfissional.FindAsync(id);
-        if (tbprofissional == null)
+        } 
+        var profissional = await (await ProfissionaisPermitidosAsync())
+            .AsNoTracking().FirstOrDefaultAsync(p => p.IdProfissional == id);
+        if (profissional == null) 
         {
             return NotFound();
-        }
-        return View(tbprofissional);
+        } 
+        await CarregarCidadesAsync(profissional.IdCidade);
+        return View(profissional);
     }
 
-    // POST: TBPROFISSIONALS/Edit/5
-    // To protect from overposting attacks, enable the specific properties you want to bind to.
-    // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-    [HttpPost]
+    [HttpPost, ActionName("Edit")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int? id, [Bind("IdProfissional,IdTipoProfissional,IdContrato,IdTipoAcesso,IdCidade,IdUser,Nome,Cpf,CrmCrn,Especialidade,Logradouro,Numero,Bairro,Cep,Cidade,Estado,Ddd1,Ddd2,Telefone1,Telefone2,Salario,IdCidadeNavigation,IdContratoNavigation,IdTipoAcessoNavigation,TbHoraPacienteProfissional,TbMedicoPaciente,TbPergunta,TbReceitaAlimentarPadrao,TbReceitaMedicaPadrao")] TbProfissional tbprofissional)
-    {
-        if (id != tbprofissional.IdProfissional)
-        {
-            return NotFound();
-        }
-
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                _context.Update(tbprofissional);
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!TbProfissionalExists(tbprofissional.IdProfissional))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-            return RedirectToAction(nameof(Index));
-        }
-        return View(tbprofissional);
-    }
-
-    // GET: TBPROFISSIONALS/Delete/5
-    public async Task<IActionResult> Delete(int? id)
+    public async Task<IActionResult> EditPost(int? id)
     {
         if (id == null)
         {
             return NotFound();
+        } 
+        var profissional = await (await ProfissionaisPermitidosAsync())
+            .FirstOrDefaultAsync(p => p.IdProfissional == id);
+        if (profissional == null) return NotFound();
+
+        // O CPF só entra na lista de atualização para os gerentes.
+        var valido = EhGerente
+            ? await TryUpdateModelAsync(profissional, "",
+                p => p.Nome, p => p.Cpf, p => p.CrmCrn, p => p.Especialidade,
+                p => p.Logradouro, p => p.Numero, p => p.Bairro, p => p.Cep,
+                p => p.IdCidade, p => p.Cidade, p => p.Estado,
+                p => p.Ddd1, p => p.Ddd2, p => p.Telefone1, p => p.Telefone2,
+                p => p.Salario)
+            : await TryUpdateModelAsync(profissional, "",
+                p => p.Nome, p => p.CrmCrn, p => p.Especialidade,
+                p => p.Logradouro, p => p.Numero, p => p.Bairro, p => p.Cep,
+                p => p.IdCidade, p => p.Cidade, p => p.Estado,
+                p => p.Ddd1, p => p.Ddd2, p => p.Telefone1, p => p.Telefone2,
+                p => p.Salario);
+
+        if (valido)
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!await _context.TbProfissional.AnyAsync(p => p.IdProfissional == id))
+                    return NotFound();
+                ModelState.AddModelError(string.Empty, "O profissional foi alterado. Recarregue a página e tente novamente.");
+            }
+            catch (DbUpdateException)
+            {
+                ModelState.AddModelError(string.Empty, "Não foi possível salvar as alterações.");
+            }
         }
 
-        var tbprofissional = await _context.TbProfissional
-            .FirstOrDefaultAsync(m => m.IdProfissional == id);
-        if (tbprofissional == null)
+        await CarregarCidadesAsync(profissional.IdCidade);
+        return View(profissional);
+    }
+
+    [Authorize(Roles = AppRoles.Gerentes)]
+    public async Task<IActionResult> Delete(int? id, bool saveChangesError = false)
+    {
+        if (id == null) return NotFound();
+        var profissional = await (await ProfissionaisPermitidosAsync())
+            .AsNoTracking().FirstOrDefaultAsync(p => p.IdProfissional == id);
+        if (profissional == null) 
         {
             return NotFound();
         }
 
-        return View(tbprofissional);
+        ViewData["TemPacientes"] = await _context.TbMedicoPaciente
+            .AnyAsync(v => v.IdProfissional == id);
+        if (saveChangesError)
+        {
+            ViewData["ErrorMessage"] = "Não foi possível excluir o profissional porque há registros relacionados.";
+        }
+        return View(profissional);
     }
 
-    // POST: TBPROFISSIONALS/Delete/5
     [HttpPost, ActionName("Delete")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteConfirmed(int? id)
+    [Authorize(Roles = AppRoles.Gerentes)]
+    public async Task<IActionResult> DeleteConfirmed(int id)
     {
-        var tbprofissional = await _context.TbProfissional.FindAsync(id);
-        if (tbprofissional != null)
+        var profissional = await (await ProfissionaisPermitidosAsync())
+            .FirstOrDefaultAsync(p => p.IdProfissional == id);
+        if (profissional == null) 
         {
-            _context.TbProfissional.Remove(tbprofissional);
+            return NotFound();
         }
 
-        await _context.SaveChangesAsync();
-        return RedirectToAction(nameof(Index));
+        if (await _context.TbMedicoPaciente.AnyAsync(v => v.IdProfissional == id))
+        {
+            ModelState.AddModelError(string.Empty, "Profissionais com pacientes cadastrados não podem ser excluídos.");
+            ViewData["TemPacientes"] = true;
+            return View("Delete", profissional);
+        }
+
+        try
+        {
+            _context.TbProfissional.Remove(profissional);
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(Index));
+        }
+        catch (DbUpdateException)
+        {
+            return RedirectToAction(nameof(Delete), new { id, saveChangesError = true });
+        }
     }
 
-    private bool TbProfissionalExists(int? id)
+    private bool EhGerente => User.IsInRole(AppRoles.GerenteGeral)
+        || User.IsInRole(AppRoles.GerenteMedico)
+        || User.IsInRole(AppRoles.GerenteNutricionista);
+
+    private async Task<IQueryable<TbProfissional>> ProfissionaisPermitidosAsync()
     {
-        return _context.TbProfissional.Any(e => e.IdProfissional == id);
+        var consulta = _context.TbProfissional.AsQueryable();
+        if (User.IsInRole(AppRoles.GerenteGeral)) return consulta;
+
+        if (User.IsInRole(AppRoles.GerenteMedico))
+        {
+            var medicos = await _userManager.GetUsersInRoleAsync(AppRoles.Medico);
+            var ids = medicos.Select(u => u.Id).ToArray();
+            return consulta.Where(p => ids.Contains(p.IdUser));
+        }
+        if (User.IsInRole(AppRoles.GerenteNutricionista))
+        {
+            var nutricionistas = await _userManager.GetUsersInRoleAsync(AppRoles.Nutricionista);
+            var ids = nutricionistas.Select(u => u.Id).ToArray();
+            return consulta.Where(p => ids.Contains(p.IdUser));
+        }
+
+        var idAtual = _userManager.GetUserId(User);
+        return consulta.Where(p => p.IdUser == idAtual);
+    }
+
+    private async Task CarregarCidadesAsync(int? selecionada)
+    {
+        var cidades = await _context.TbCidade.AsNoTracking().OrderBy(c => c.Nome).ToListAsync();
+        ViewData["IdCidade"] = new SelectList(cidades, "IdCidade", "Nome", selecionada);
     }
 }
