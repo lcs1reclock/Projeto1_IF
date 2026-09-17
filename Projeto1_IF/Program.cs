@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Projeto1_IF.Data;
 using Projeto1_IF.Models;
+using Projeto1_IF.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,11 +15,32 @@ builder.Services.AddDbContext<DB_IFContext>(options =>
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddDefaultIdentity<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = false)
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach (var nome in AppRoles.Nomes)
+    {
+        if (!await roleManager.RoleExistsAsync(nome))
+        {
+            var result = await roleManager.CreateAsync(new IdentityRole(nome));
+            if (!result.Succeeded)
+                throw new InvalidOperationException($"Não foi possível criar o papel {nome}.");
+        }
+    }
+
+    if (args.Contains("--provision-managers", StringComparer.OrdinalIgnoreCase))
+    {
+        await ManagerProvisioner.ProvisionAsync(scope.ServiceProvider);
+        return;
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
