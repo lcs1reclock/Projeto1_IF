@@ -1,4 +1,5 @@
 ﻿<!DOCTYPE html>
+@using Projeto1_IF.Security
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -28,15 +29,23 @@
                         </li>
                         @if (User.Identity?.IsAuthenticated == true)
                         {
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="TbProfissionais" asp-action="Index">Profissionais</a>
-                            </li>
+                            @if (User.IsInRole(AppRoles.Medico) || User.IsInRole(AppRoles.Nutricionista)
+                                || User.IsInRole(AppRoles.GerenteMedico) || User.IsInRole(AppRoles.GerenteNutricionista)
+                                || User.IsInRole(AppRoles.GerenteGeral))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-area="" asp-controller="TbProfissionais" asp-action="Index">Profissionais</a>
+                                </li>
+                            }
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-area="" asp-controller="TbAlimentos" asp-action="Index">Alimentos</a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="TbPacientes" asp-action="Index">Pacientes</a>
-                            </li>
+                            @if (User.IsInRole(AppRoles.Medico) || User.IsInRole(AppRoles.Nutricionista))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-area="" asp-controller="TbPacientes" asp-action="Index">Pacientes</a>
+                                </li>
+                            }
                         }
                     </ul>
                     <partial name="_LoginPartial" />
