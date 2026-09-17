@@ -98,14 +98,16 @@ public class TbProfissionaisController : Controller
             PopulateSelects();
             return View(tbprofissional);
         }
-        if (_userManager == null)
+
+        var userManager = HttpContext.RequestServices.GetService<UserManager<IdentityUser>>();
+        if (userManager == null)
         {
             ModelState.AddModelError(string.Empty, "Serviço de usuário indisponível.");
             PopulateSelects();
             return View(tbprofissional);
         }
 
-        var user = await _userManager.GetUserAsync(User);
+        var user = await userManager.GetUserAsync(User);
         if (user == null)
         {
             // usuário não autenticado ou não encontrado -> retorna view com erro em vez de 404

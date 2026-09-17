@@ -1,0 +1,38 @@
+@* Lucas Pedroso do Bomdespacho *@
+@model IEnumerable<Projeto1_IF.Models.TbPaciente>
+@{
+    ViewData["Title"] = "Pacientes";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Pacientes</h1>
+    <a asp-action="Create" class="btn btn-primary">Cadastrar paciente</a>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>Data de nascimento</th>
+            <th>Cidade</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var paciente in Model)
+        {
+            <tr>
+                <td>@paciente.Nome</td>
+                <td>@paciente.Cpf</td>
+                <td>@paciente.DataNascimento.ToString("dd/MM/yyyy")</td>
+                <td>@paciente.IdCidadeNavigation?.Nome</td>
+                <td>
+                    <a asp-action="Details" asp-route-id="@paciente.IdPaciente">Detalhes</a> |
+                    <a asp-action="Edit" asp-route-id="@paciente.IdPaciente">Editar</a> |
+                    <a asp-action="Delete" asp-route-id="@paciente.IdPaciente">Excluir</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

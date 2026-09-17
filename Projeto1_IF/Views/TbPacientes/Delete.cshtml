@@ -1,0 +1,21 @@
+@* Lucas Pedroso do Bomdespacho *@
+@model Projeto1_IF.Models.TbPaciente
+@{
+    ViewData["Title"] = "Excluir paciente";
+}
+
+<h1>Excluir paciente</h1>
+<p>Confirma a exclusão deste paciente?</p>
+@if (ViewData["ErrorMessage"] is string errorMessage)
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+<dl class="row">
+    <dt class="col-sm-3">Nome</dt><dd class="col-sm-9">@Model.Nome</dd>
+    <dt class="col-sm-3">CPF</dt><dd class="col-sm-9">@Model.Cpf</dd>
+    <dt class="col-sm-3">Cidade</dt><dd class="col-sm-9">@Model.IdCidadeNavigation?.Nome</dd>
+</dl>
+<form asp-action="Delete" asp-route-id="@Model.IdPaciente" method="post">
+    <button type="submit" class="btn btn-danger">Confirmar exclusão</button>
+    <a asp-action="Index" class="btn btn-secondary">Cancelar</a>
+</form>
