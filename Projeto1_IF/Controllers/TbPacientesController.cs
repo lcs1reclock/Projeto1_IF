@@ -1,24 +1,35 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Projeto1_IF.Data;
 using Projeto1_IF.Models;
+using Projeto1_IF.Security;
 
 // Lucas Pedroso do Bomdespacho
-[Authorize]
+[Authorize(Roles = AppRoles.Profissionais)]
 public class TbPacientesController : Controller
 {
     private readonly DB_IFContext _context;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public TbPacientesController(DB_IFContext context) => _context = context;
+    public TbPacientesController(DB_IFContext context, UserManager<ApplicationUser> userManager)
+    {
+        _context = context;
+        _userManager = userManager;
+    }
 
     public async Task<IActionResult> Index()
     {
-        var pacientes = await _context.TbPaciente
-            .Include(p => p.IdCidadeNavigation)
-            .AsNoTracking()
-            .OrderBy(p => p.Nome)
-            .ToListAsync();
+        var profissionalId = await ProfissionalAtualIdAsync();
+        if (profissionalId == null) 
+        {
+            return Forbid();
+        } 
+        var pacientes = await PacientesPermitidos(profissionalId.Value)
+            .Include(p => p.IdCidadeNavigation).AsNoTracking()
+            .OrderBy(p => p.Nome).ToListAsync();
         return View(pacientes);
     }
 
@@ -27,15 +38,20 @@ public class TbPacientesController : Controller
         if (id == null) {
             return NotFound();
         } 
-        var paciente = await _context.TbPaciente
-            .Include(p => p.IdCidadeNavigation)
-            .AsNoTracking()
+        var profissionalId = await ProfissionalAtualIdAsync();
+        if (profissionalId == null) 
+        {
+            return Forbid();
+        } 
+        var paciente = await PacientesPermitidos(profissionalId.Value)
+            .Include(p => p.IdCidadeNavigation).AsNoTracking()
             .FirstOrDefaultAsync(p => p.IdPaciente == id);
         return paciente == null ? NotFound() : View(paciente);
     }
 
     public async Task<IActionResult> Create()
     {
+        if (await ProfissionalAtualIdAsync() == null) return Forbid();
         await CarregarCidades();
         return View();
     }
@@ -44,11 +60,20 @@ public class TbPacientesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create([Bind("Nome,Rg,Cpf,DataNascimento,NomeResponsavel,Sexo,Etnia,Endereco,Bairro,IdCidade,TelResidencial,TelComercial,TelCelular,Profissao,FlgAtleta,FlgGestante")] TbPaciente paciente)
     {
+        var profissionalId = await ProfissionalAtualIdAsync();
+        if (profissionalId == null) 
+        {
+            return Forbid();
+        } 
         if (ModelState.IsValid)
         {
             try
             {
-                _context.TbPaciente.Add(paciente);
+                _context.TbMedicoPaciente.Add(new TbMedicoPaciente
+                {
+                    IdProfissional = profissionalId.Value,
+                    IdPacienteNavigation = paciente
+                });
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
@@ -66,16 +91,18 @@ public class TbPacientesController : Controller
         if (id == null) {
             return NotFound();
         } 
-        var paciente = await _context.TbPaciente.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.IdPaciente == id);
-        if (paciente == null) {
-            return NotFound();
+        var profissionalId = await ProfissionalAtualIdAsync();
+        if (profissionalId == null) 
+        {
+            return Forbid();
         } 
+        var paciente = await PacientesPermitidos(profissionalId.Value).AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdPaciente == id);
+        if (paciente == null) return NotFound();
         await CarregarCidades(paciente.IdCidade);
         return View(paciente);
     }
 
-    // Atualiza apenas os campos do formulário, como no tutorial de CRUD da Microsoft.
     [HttpPost, ActionName("Edit")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditPost(int? id)
@@ -83,8 +110,15 @@ public class TbPacientesController : Controller
         if (id == null) {
             return NotFound();
         } 
-        var paciente = await _context.TbPaciente.FindAsync(id.Value);
-        if (paciente == null) {
+        var profissionalId = await ProfissionalAtualIdAsync();
+        if (profissionalId == null) 
+        {
+            return Forbid();
+        } 
+        var paciente = await PacientesPermitidos(profissionalId.Value)
+            .FirstOrDefaultAsync(p => p.IdPaciente == id);
+        if (paciente == null) 
+        {
             return NotFound();
         } 
 
@@ -102,14 +136,13 @@ public class TbPacientesController : Controller
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!await _context.TbPaciente.AnyAsync(p => p.IdPaciente == id.Value)){
+                if (!await _context.TbPaciente.AnyAsync(p => p.IdPaciente == id.Value))
                     return NotFound();
-                }
-                ModelState.AddModelError(string.Empty, "O paciente foi alterado por outra operação. Recarregue a página e tente novamente.");
+                ModelState.AddModelError(string.Empty, "O paciente foi alterado. Recarregue a página e tente novamente.");
             }
             catch (DbUpdateException)
             {
-                ModelState.AddModelError(string.Empty, "Não foi possível atualizar o paciente. Verifique os dados e tente novamente.");
+                ModelState.AddModelError(string.Empty, "Não foi possível atualizar o paciente.");
             }
         }
         await CarregarCidades(paciente.IdCidade);
@@ -121,15 +154,19 @@ public class TbPacientesController : Controller
         if (id == null) {
             return NotFound();
         } 
-        var paciente = await _context.TbPaciente
-            .Include(p => p.IdCidadeNavigation)
-            .AsNoTracking()
+        var profissionalId = await ProfissionalAtualIdAsync();
+        if (profissionalId == null) 
+        {
+            return Forbid();
+        } 
+        var paciente = await PacientesPermitidos(profissionalId.Value)
+            .Include(p => p.IdCidadeNavigation).AsNoTracking()
             .FirstOrDefaultAsync(p => p.IdPaciente == id);
         if (paciente == null) {
             return NotFound();
         } 
         if (saveChangesError) {
-            ViewData["ErrorMessage"] = "Não foi possível excluir o paciente. Verifique se há registros vinculados a ele.";
+            ViewData["ErrorMessage"] = "Não foi possível excluir o paciente. Há outros registros vinculados a ele.";
         }
         return View(paciente);
     }
@@ -138,13 +175,32 @@ public class TbPacientesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteConfirmed(int id)
     {
-        var paciente = await _context.TbPaciente.FindAsync(id);
-        if (paciente == null) {
-            return RedirectToAction(nameof(Index));
+        var profissionalId = await ProfissionalAtualIdAsync();
+        if (profissionalId == null) 
+        {
+            return Forbid();
         } 
+        var vinculos = await _context.TbMedicoPaciente
+            .Where(v => v.IdPaciente == id && v.IdProfissional == profissionalId)
+            .ToListAsync();
+        if (vinculos.Count == 0) 
+        {
+            return NotFound();
+        } 
+
+        var outroProfissional = await _context.TbMedicoPaciente
+            .AnyAsync(v => v.IdPaciente == id && v.IdProfissional != profissionalId);
+        _context.TbMedicoPaciente.RemoveRange(vinculos);
+        if (!outroProfissional)
+        {
+            var paciente = await _context.TbPaciente.FindAsync(id);
+            if (paciente != null) 
+            {
+                _context.TbPaciente.Remove(paciente);
+            } 
+        }
         try
         {
-            _context.TbPaciente.Remove(paciente);
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
@@ -154,10 +210,21 @@ public class TbPacientesController : Controller
         }
     }
 
-    private async Task CarregarCidades(int? cidadeSelecionada = null)
+    private async Task<int?> ProfissionalAtualIdAsync()
+    {
+        var userId = _userManager.GetUserId(User);
+        return await _context.TbProfissional.Where(p => p.IdUser == userId)
+            .Select(p => (int?)p.IdProfissional).FirstOrDefaultAsync();
+    }
+
+    private IQueryable<TbPaciente> PacientesPermitidos(int profissionalId) =>
+        _context.TbPaciente.Where(p => p.TbMedicoPaciente
+            .Any(v => v.IdProfissional == profissionalId));
+
+    private async Task CarregarCidades(int? selecionada = null)
     {
         var cidades = await _context.TbCidade.AsNoTracking()
             .OrderBy(c => c.Nome).ToListAsync();
-        ViewData["IdCidade"] = new SelectList(cidades, "IdCidade", "Nome", cidadeSelecionada);
+        ViewData["IdCidade"] = new SelectList(cidades, "IdCidade", "Nome", selecionada);
     }
 }
